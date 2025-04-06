@@ -14,83 +14,74 @@ Base = declarative_base()
 
 
 class Seat(Base):
-	"""ORM model representing a seat, aisle, or storage area in the aircraft."""
-	__tablename__ = 'Seats'
+    """ORM model representing a seat, aisle, or storage area in the aircraft."""
+    __tablename__ = 'Seats'
 
-	# Database columns and constraints
-	seat_id = Column(String(10), primary_key=True)  # Unique seat identifier (e.g., "A3")
-	row = Column(String(1), nullable=False)  # Row letter (e.g., 'A', 'B')
-	position = Column(Integer, nullable=False)  # Position index within the row
-	type = Column(Enum('seat', 'aisle', 'storage', name='seat_type'), nullable=False)  # Type: seat/aisle/storage
-	booking_reference = Column(String(8), unique=True, nullable=True)  # Unique 8-character booking code
-	category = Column(Enum('window', 'middle', 'aisle', name='seat_category'), nullable=True)  # Seat category (if type is 'seat')
+    seat_id = Column(String(10), primary_key=True)
+    row = Column(String(1), nullable=False)
+    position = Column(Integer, nullable=False)
+    type = Column(Enum('seat', 'aisle', 'storage', name='seat_type'), nullable=False)
+    booking_reference = Column(String(8), unique=True, nullable=True)
+    category = Column(Enum('window', 'middle', 'aisle', name='seat_category'), nullable=True)
 
-	# Table-level constraints
-	__table_args__ = (
-		# Ensures 'category' is provided if the seat type is 'seat'
-		CheckConstraint(
-			"(type != 'seat') OR (category IS NOT NULL)",
-			name='check_seat_category'
-		),
-		# Ensures booking references are exactly 8 characters if present
-		CheckConstraint(
-			"(type != 'seat') OR (booking_reference IS NULL OR LENGTH(booking_reference) = 8)"
-		),
-	)
+    __table_args__ = (
+        CheckConstraint(
+            "(type != 'seat') OR (category IS NOT NULL)",
+            name='check_seat_category'
+        ),
+        CheckConstraint(
+            "(type != 'seat') OR (booking_reference IS NULL OR LENGTH(booking_reference) = 8)"
+        ),
+    )
 
-	@staticmethod
-	def initialize_database(session, csv_filename='Seats.csv'):
-		"""Initializes the database with seat data from a CSV file."""
-		# Create all tables if they don't exist
-		Base.metadata.create_all(session.bind)
+    @staticmethod
+    def initialize_database(session, csv_filename='Seats.csv'):
+        """Initializes the database with seat data from a CSV file."""
+        Base.metadata.create_all(session.bind)
 
-		# Skip initialization if data already exists
-		if session.query(Seat).count() == 0:
-			try:
-				with open(csv_filename, 'r') as f:
-					csv_reader = csv.reader(f)
-					for csv_row in csv_reader:
-						row_label = csv_row[0]  # First element is row letter (e.g., 'A')
-						positions = csv_row[1:]  # Remaining elements define seat/aisle/storage positions
+        if session.query(Seat).count() == 0:
+            try:
+                with open(csv_filename, 'r') as f:
+                    csv_reader = csv.reader(f)
+                    for csv_row in csv_reader:
+                        row_label = csv_row[0]
+                        positions = csv_row[1:]
 
-						# Determine seat category based on row letter
-						if row_label in ['A', 'F']:
-							category = 'window'
-						elif row_label in ['B', 'E']:
-							category = 'middle'
-						elif row_label in ['C', 'D']:
-							category = 'aisle'
-						else:
-							category = 'middle'  # Default for unexpected rows
+                        if row_label in ['A', 'F']:
+                            category = 'window'
+                        elif row_label in ['B', 'E']:
+                            category = 'middle'
+                        elif row_label in ['C', 'D']:
+                            category = 'aisle'
+                        else:
+                            category = 'middle'
 
-						# Process each position in the row
-						for idx, cell in enumerate(positions, start=1):
-							seat_type = 'seat'  # Default type
-							if cell == 'X':
-								seat_type = 'aisle'
-							elif cell == 'S':
-								seat_type = 'storage'
+                        for idx, cell in enumerate(positions, start=1):
+                            seat_type = 'seat'
+                            if cell == 'X':
+                                seat_type = 'aisle'
+                            elif cell == 'S':
+                                seat_type = 'storage'
 
-							# Generate seat_id: 'A3' for seats, 'A-1' for aisles/storage
-							seat_id = f"{row_label}{cell}" if seat_type == 'seat' else f"{row_label}-{idx}"
+                            # Corrected line: use idx for seat_id when it's a seat
+                            seat_id = f"{row_label}{idx}" if seat_type == 'seat' else f"{row_label}-{idx}"
 
-							# Create Seat object and add to session
-							seat = Seat(
-								seat_id=seat_id,
-								row=row_label,
-								position=idx,
-								type=seat_type,
-								booking_reference=None,
-								category=category if seat_type == 'seat' else None  # Only seats have categories
-							)
-							session.add(seat)
-				session.commit()  # Save all changes to the database
-			except IntegrityError as e:
-				session.rollback()  # Undo changes on error
-				print(f"Database error: {e}")
-			except Exception as e:
-				session.rollback()
-				print(f"Error: {e}")
+                            seat = Seat(
+                                seat_id=seat_id,
+                                row=row_label,
+                                position=idx,
+                                type=seat_type,
+                                booking_reference=None,
+                                category=category if seat_type == 'seat' else None
+                            )
+                            session.add(seat)
+                session.commit()
+            except IntegrityError as e:
+                session.rollback()
+                print(f"Database error: {e}")
+            except Exception as e:
+                session.rollback()
+                print(f"Error: {e}")
 
 
 class Traveler(Base):
@@ -151,7 +142,7 @@ def show_menu():
 
 def check_availability(session):
 	"""Checks if a specific seat is available."""
-	seat_id = input("Enter seat number: ").strip().upper()  # Normalize input (e.g., 'a3' -> 'A3')
+	seat_id = input("For example, seat a12 or 12a please type as a12a\nEnter seat number: ").strip().upper()  # Normalize input (e.g., 'a3' -> 'A3')
 	seat = session.query(Seat).filter_by(seat_id=seat_id).first()  # Query database
 
 	if not seat or seat.type != 'seat':
