@@ -130,6 +130,7 @@ def generate_booking_reference(session):
 			return reference
 	# Implicit else: loop continues to generate new reference
 
+
 def show_menu():
 	"""Displays the CLI menu options."""
 	print("\nMenu:")
